@@ -1,0 +1,17 @@
+[
+    {
+        "id": 1,
+        "nome": "Sala Executiva",
+        "capacidade": 12
+    },
+    {
+        "id": 2,
+        "nome": "Sala Reunião A",
+        "capacidade": 8
+    },
+    {
+        "id": 3,
+        "nome": "Auditório",
+        "capacidade": 50
+    }
+]
