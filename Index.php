@@ -1,5 +1,7 @@
 <?php
-// index.php (frontend corrigido)
+// index.php — página do usuário (somente consome salas.php e calendario.php)
+require_once __DIR__ . '/salas.php';
+require_once __DIR__ . '/calendario.php';
 ?>
 <!doctype html>
 <html lang="pt-br">
@@ -7,11 +9,9 @@
   <meta charset="utf-8">
   <title>Agenda W3</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
   <!-- Bootstrap & Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-
   <style>
     :root{
       --w3-primary:#0d6efd;
@@ -72,25 +72,38 @@
     <div class="container-fluid py-2">
       <span class="navbar-brand mb-0 h1">Agenda W3</span>
       <div class="d-flex gap-2">
-        <a href="?admin=1" class="btn btn-outline-secondary btn-sm">Modo Admin</a>
-        <a href="?" class="btn btn-outline-secondary btn-sm">Modo Usuário</a>
+        <a href="admin.php" class="btn btn-outline-secondary btn-sm">Modo Admin</a>
+        <a href="index.php" class="btn btn-outline-secondary btn-sm">Modo Usuário</a>
       </div>
     </div>
   </nav>
 
   <div class="container pb-4">
-    
+    <!-- Seleção de Funcionário -->
+    <div class="mb-4">
+      <label class="form-label fw-semibold">Funcionário Solicitante:</label>
+      <select class="form-select" id="funcionario">
+        <option value="">Selecione...</option>
+        <option>João Silva</option>
+        <option>Maria Oliveira</option>
+        <option>Lucas Kolody</option>
+      </select>
+    </div>
+
     <div class="row g-3">
       <!-- Coluna esquerda: Salas -->
       <div class="col-lg-4 col-xl-3">
         <div class="side-title mb-2">Salas Disponíveis</div>
-        <?php include 'salas.php'; ?>
+        <?php
+          $salas = carregar_salas();
+          renderizar_lista_salas($salas);
+        ?>
       </div>
 
       <!-- Coluna direita: Calendário -->
       <div class="col-lg-8 col-xl-9">
         <div class="calendar-wrap">
-          <?php include 'calendario.php'; ?>
+          <?php renderizar_calendario(); ?>
         </div>
 
         <div class="mt-3 ps-1 legend">
@@ -102,224 +115,7 @@
     </div>
   </div>
 
-  <!-- Modal de Configuração da Sala / Reserva -->
-  <div class="modal fade" id="salaModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Nova Reserva</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-        </div>
-        <div class="modal-body">
-          <form id="salaForm" class="row g-3">
-            <div class="col-md-4">
-              <label class="form-label">Número de Pessoas</label>
-              <input type="number" class="form-control" id="numPessoas" min="1" required>
-            </div>
-
-            <div class="col-md-4">
-              <label class="form-label">Reunião</label>
-              <select class="form-select" id="tipoReuniao" required>
-                <option value="presencial">Presencial</option>
-                <option value="online">Online</option>
-              </select>
-            </div>
-
-            <div class="col-md-4">
-              <label class="form-label">Quitutes</label>
-              <select class="form-select" id="quitutes" required>
-                <option value="nao">Não</option>
-                <option value="sim">Sim</option>
-              </select>
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">Setor da Empresa</label>
-              <select class="form-select" id="setor" required>
-                <option value="">Selecione...</option>
-                <option value="RH">RH</option>
-                <option value="TI">TI</option>
-                <option value="Compras">Compras</option>
-              </select>
-            </div>
-
-            <div class="col-md-6">
-              <label class="form-label">Solicitante</label>
-              <input type="text" class="form-control" id="solicitante" placeholder="Nome do responsável" required>
-            </div>
-
-            <div class="col-md-4">
-              <label class="form-label">Data</label>
-              <input type="date" class="form-control" id="dataReuniao" required>
-            </div>
-
-            <!-- Hora Início -->
-            <div class="col-md-4">
-              <label class="form-label d-block">Hora Início</label>
-              <div class="d-flex gap-2">
-                <select class="form-select" id="horaInicioH" required>
-                  <?php for ($h=8; $h<=18; $h++): ?>
-                    <option value="<?= str_pad($h,2,'0',STR_PAD_LEFT) ?>"><?= str_pad($h,2,'0',STR_PAD_LEFT) ?></option>
-                  <?php endfor; ?>
-                </select>
-                <select class="form-select" id="horaInicioM" required>
-                  <option value="00">00</option>
-                  <option value="30">30</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- Hora Fim -->
-            <div class="col-md-4">
-              <label class="form-label d-block">Hora Fim</label>
-              <div class="d-flex gap-2">
-                <select class="form-select" id="horaFimH" required>
-                  <?php for ($h=8; $h<=18; $h++): ?>
-                    <option value="<?= str_pad($h,2,'0',STR_PAD_LEFT) ?>"><?= str_pad($h,2,'0',STR_PAD_LEFT) ?></option>
-                  <?php endfor; ?>
-                </select>
-                <select class="form-select" id="horaFimM" required>
-                  <option value="00">00</option>
-                  <option value="30">30</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="col-md-12">
-              <label class="form-label">Observações</label>
-              <textarea class="form-control" id="observacoes" rows="3" placeholder="Digite observações adicionais..."></textarea>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="salvarSala">Salvar</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-  <script>
-    const salaModal = new bootstrap.Modal(document.getElementById('salaModal'));
-    let salaSelecionada = null;
-
-    // Clique nas salas (ignora as bloqueadas)
-    document.addEventListener('click', (e) => {
-      const btnSala = e.target.closest('.btn-sala');
-      if (btnSala && !btnSala.classList.contains('disabled')) {
-        document.querySelectorAll('.btn-sala').forEach(el => el.classList.remove('active'));
-        btnSala.classList.add('active');
-
-        salaSelecionada = btnSala.dataset.sala;
-        const nomeSala = btnSala.dataset.nome || 'Sala';
-        const span = document.getElementById('calRoomName');
-        if (span) span.textContent = nomeSala;
-
-        // valores padrão nos selects
-        document.getElementById('horaInicioH').value = '08';
-        document.getElementById('horaInicioM').value = '00';
-        document.getElementById('horaFimH').value = '09';
-        document.getElementById('horaFimM').value = '00';
-        salaModal.show();
-      }
-    });
-
-    // Utilitários de horário
-    function pad2(n){ n = parseInt(n,10); return (n<10?'0':'') + n; }
-    function toMinutes(t) { const [h,m] = t.split(':').map(Number); return h*60 + m; }
-    function isHalfHour(t) { return /:(00|30)$/.test(t); }
-    function withinWindow(start, end) {
-      const S = toMinutes(start), E = toMinutes(end);
-      const WMIN = 8*60, WMAX = 18*60; // 08:00–18:00
-      return S >= WMIN && E <= WMAX && S < E;
-    }
-
-    // Impedir 18:30 ou além
-    document.getElementById('horaInicioH').addEventListener('change', (e)=>{
-      if (e.target.value === '18') document.getElementById('horaInicioM').value = '00';
-    });
-    document.getElementById('horaFimH').addEventListener('change', (e)=>{
-      if (e.target.value === '18') document.getElementById('horaFimM').value = '00';
-    });
-
-    // Salvar (reserva) -> valida e marca no calendário
-    document.getElementById('salvarSala').addEventListener('click', () => {
-      const horaInicio = pad2(document.getElementById('horaInicioH').value) + ':' + document.getElementById('horaInicioM').value;
-      const horaFim    = pad2(document.getElementById('horaFimH').value)    + ':' + document.getElementById('horaFimM').value;
-
-      const dados = {
-        sala: salaSelecionada,
-        numPessoas: document.getElementById('numPessoas').value,
-        tipoReuniao: document.getElementById('tipoReuniao').value,
-        quitutes: document.getElementById('quitutes').value,
-        setor: document.getElementById('setor').value,
-        solicitante: document.getElementById('solicitante').value,
-        data: document.getElementById('dataReuniao').value,
-        horaInicio,
-        horaFim,
-        observacoes: document.getElementById('observacoes').value
-      };
-
-      if (!dados.data) { alert('Selecione a data.'); return; }
-      if (!isHalfHour(dados.horaInicio) || !isHalfHour(dados.horaFim)) {
-        alert('Horários devem estar em intervalos de 30 minutos (:00 ou :30).');
-        return;
-      }
-      if (!withinWindow(dados.horaInicio, dados.horaFim)) {
-        alert('A reserva deve estar entre 08:00 e 18:00 e o fim maior que o início.');
-        return;
-      }
-
-      aplicarReserva(dados.data, dados.horaInicio, dados.horaFim, dados.setor || 'Reservado');
-      salaModal.hide();
-    });
-
-    // Selecionar múltiplos horários manualmente
-    document.addEventListener("click", function(e){
-      if(e.target.classList.contains("horario") &&
-         !e.target.classList.contains("reservado") &&
-         !e.target.classList.contains("bloqueado")){
-        e.target.classList.toggle("selected");
-      }
-    });
-
-    // Helpers para pintar calendário
-    function aplicarReserva(dataISO, horaInicio, horaFim, label='Reservado'){
-      const cells = document.querySelectorAll(`[data-date='${dataISO}']`);
-      let run = false;
-      cells.forEach(c => {
-        const h = c.dataset.hora;
-        if (h === horaInicio) run = true;
-        if (run) {
-          c.classList.remove('selected');
-          c.classList.add('reservado');
-          c.innerText = label;
-        }
-        if (h === horaFim) run = false;
-      });
-    }
-
-    function aplicarBloqueio(dataISO, horaInicio, horaFim, label='Bloqueado'){
-      const cells = document.querySelectorAll(`[data-date='${dataISO}']`);
-      let run = false;
-      cells.forEach(c => {
-        const h = c.dataset.hora;
-        if (h === horaInicio) run = true;
-        if (run) {
-          c.classList.remove('selected','reservado');
-          c.classList.add('bloqueado');
-          c.innerText = label;
-        }
-        if (h === horaFim) run = false;
-      });
-    }
-
-    // expõe para chamadas vindas do PHP (salas.php)
-    window.aplicarBloqueio = aplicarBloqueio;
-    window.aplicarReserva  = aplicarReserva;
-  </script>
 </body>
 </html>
