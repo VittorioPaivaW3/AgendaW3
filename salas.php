@@ -93,7 +93,7 @@ foreach ($pdo->query('SELECT * FROM rooms ORDER BY id') as $r) {
                   </div>
                   <div>
                     <label class="text-xs">Capacidade</label>
-                    <input name="capacity" type="number" min="1" value="<?= (int)$r['capacity'] ?>" class="mt-1 w-full rounded-xl border-slate-300"/>
+                    <input name="capacity" type="number" min="1"placeholder="Inclua o solicitante se necessario" value="<?= (int)$r['capacity'] ?>" class="mt-1 w-full rounded-xl border-slate-300"/>
                   </div>
                   <div class="md:col-span-2">
                     <label class="text-xs">Extras</label>
