@@ -20,6 +20,9 @@
 <dialog id="createDialog" class="rounded-2xl w-[min(800px,95vw)] p-0">
   <form method="post" class="p-6 space-y-4" onsubmit="return onSubmitCreate()">
     <input type="hidden" name="action" value="save_booking"/>
+    <input type="hidden" name="booking_id" id="booking_id" value="">
+<input type="hidden" name="action" value="save_booking" id="booking_action">
+
     <div class="flex items-start justify-between">
       <h2 class="text-lg font-semibold">Nova reserva</h2>
       <button type="button" class="text-slate-400 hover:text-slate-700" onclick="this.closest('dialog').close()">✕</button>
