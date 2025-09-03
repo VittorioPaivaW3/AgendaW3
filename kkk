@@ -1,0 +1,194 @@
+<?php
+// calendario.php — visão semanal com filtros adicionais para admin
+// OBS: Usa funções utilitárias que já estão no bootstrap.php (h, bookingsForCell, hh, parseDateTime)
+
+// -----------------------------
+// Semana selecionada (segunda a sexta)
+$weekParam = $_GET['week'] ?? '';
+$today = new DateTime('today');
+$baseDate = $weekParam ? DateTime::createFromFormat('Y-m-d', $weekParam) : clone $today;
+if (!$baseDate) { $baseDate = clone $today; }
+
+$dayOfWeek = (int)$baseDate->format('N'); // 1=seg
+$monday = (clone $baseDate)->modify('-' . ($dayOfWeek - 1) . ' days');
+$friday = (clone $monday)->modify('+4 days');
+
+$weekDays = [];
+for ($i = 0; $i < 5; $i++) {
+    $d = (clone $monday)->modify("+$i days");
+    $weekDays[] = $d;
+}
+
+$weekStartSql = (clone $monday)->setTime(0,0,0)->format('Y-m-d H:i:s');
+$weekEndSql   = (clone $friday)->setTime(23,59,59)->format('Y-m-d H:i:s');
+
+// Filtros GET
+$selectedRoom = isset($_GET['room_id']) ? (int)$_GET['room_id'] : 0;
+$filterOnline = !empty($_GET['filter_online']);
+$filterCoffee = !empty($_GET['filter_coffee']);
+
+// -----------------------------
+// Buscar reservas da semana (com join em sala)
+$q = 'SELECT b.*, r.name AS room_name, r.color AS room_color
+      FROM bookings b
+      JOIN rooms r ON r.id = b.room_id
+      WHERE b.date_start < :week_end AND b.date_end > :week_start';
+
+$params = [':week_end' => $weekEndSql, ':week_start' => $weekStartSql];
+
+if ($selectedRoom > 0) {
+    $q .= ' AND b.room_id = :rid';
+    $params[':rid'] = $selectedRoom;
+}
+
+// Filtros adicionais para admin
+if (!empty($_SESSION['is_admin'])) {
+    if ($filterOnline) $q .= ' AND b.is_online = 1';
+    if ($filterCoffee) $q .= ' AND b.needs_coffee = 1';
+}
+
+$q .= ' ORDER BY b.date_start';
+$st = $pdo->prepare($q);
+$st->execute($params);
+$allBookings = $st->fetchAll(PDO::FETCH_ASSOC);
+
+// Index por dia (Y-m-d) para facilitar a renderização
+$bookingsByDay = [];
+foreach ($allBookings as $b) {
+    $start = new DateTime($b['date_start']);
+    $end   = new DateTime($b['date_end']);
+    $span = new DatePeriod((clone $start)->setTime(0,0,0), new DateInterval('P1D'), (clone $end)->setTime(23,59,59)->modify('+1 second'));
+    foreach ($span as $d) {
+        $key = $d->format('Y-m-d');
+        $bookingsByDay[$key] = $bookingsByDay[$key] ?? [];
+        $bookingsByDay[$key][] = $b;
+    }
+}
+
+// Helper p/ montar query string de navegação preservando filtros
+function preserve_filters(array $extra = []): string {
+    $base = [
+        'page' => 'calendario',
+        'room_id' => $_GET['room_id'] ?? '0',
+    ];
+    if (!empty($_SESSION['is_admin'])) {
+        if (!empty($_GET['filter_online'])) $base['filter_online'] = '1';
+        if (!empty($_GET['filter_coffee'])) $base['filter_coffee'] = '1';
+    }
+    $merged = array_merge($base, $extra);
+    return '?' . http_build_query($merged);
+}
+?>
+
+<section class="bg-white rounded-2xl shadow p-4">
+  <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-4">
+    <div>
+      <h2 class="text-xl font-bold">Calendário de Reservas</h2>
+      <p class="text-sm text-slate-500">
+        Semana de <strong><?= h($monday->format('d/m/Y')) ?></strong>
+        a <strong><?= h($friday->format('d/m/Y')) ?></strong>
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <?php
+        $prevWeek = (clone $monday)->modify('-7 days')->format('Y-m-d');
+        $nextWeek = (clone $monday)->modify('+7 days')->format('Y-m-d');
+      ?>
+      <a href="<?= h(preserve_filters(['week'=>$prevWeek])) ?>" class="px-3 py-2 rounded-xl bg-white shadow hover:bg-slate-50">◀ Semana anterior</a>
+      <a href="<?= h(preserve_filters(['week'=>(new DateTime('today'))->format('Y-m-d')])) ?>" class="px-3 py-2 rounded-xl bg-white shadow hover:bg-slate-50">Hoje</a>
+      <a href="<?= h(preserve_filters(['week'=>$nextWeek])) ?>" class="px-3 py-2 rounded-xl bg-white shadow hover:bg-slate-50">Próxima semana ▶</a>
+    </div>
+  </header>
+
+  <form method="get" class="flex flex-wrap items-center gap-4 mb-4">
+    <input type="hidden" name="page" value="calendario" />
+    <input type="hidden" name="week" value="<?= h($monday->format('Y-m-d')) ?>" />
+
+    <label class="text-sm font-semibold">Sala:
+      <select id="room_id" name="room_id" class="ml-2 rounded-xl border-slate-200 focus:ring-2 focus:ring-indigo-500">
+        <option value="0" <?= $selectedRoom===0?'selected':'' ?>>Todas</option>
+        <?php foreach ($rooms as $rid => $r): ?>
+          <option value="<?= $rid ?>" <?= $selectedRoom===$rid?'selected':'' ?>><?= h($r['name']) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </label>
+
+    <?php if (!empty($_SESSION['is_admin'])): ?>
+      <label class="inline-flex items-center gap-2">
+        <input type="checkbox" name="filter_online" value="1" <?= $filterOnline ? 'checked' : '' ?>>
+        <span>Reuniões online</span>
+      </label>
+      <label class="inline-flex items-center gap-2">
+        <input type="checkbox" name="filter_coffee" value="1" <?= $filterCoffee ? 'checked' : '' ?>>
+        <span>Com café</span>
+      </label>
+    <?php endif; ?>
+
+    <button class="px-3 py-2 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700">Filtrar</button>
+  </form>
+
+  <div class="overflow-auto">
+    <table class="min-w-[900px] w-full">
+      <thead class="bg-slate-100">
+        <tr>
+          <th class="w-24 p-3 text-left text-xs font-semibold text-slate-600 sticky left-0 bg-slate-100">Hora</th>
+          <?php foreach ($weekDays as $d): ?>
+            <th class="p-3 text-left text-xs font-semibold text-slate-600">
+              <?php $label = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex'][(int)$d->format('N')]; ?>
+              <?= h($label) ?> <span class="text-slate-400"><?= h($d->format('d/m')) ?></span>
+            </th>
+          <?php endforeach; ?>
+        </tr>
+      </thead>
+      <tbody>
+        <?php for ($h = 8; $h < 18; $h++): ?>
+          <tr class="border-t border-slate-100">
+            <td class="p-3 text-sm text-slate-600 sticky left-0 bg-white"><?= hh($h) ?></td>
+            <?php foreach ($weekDays as $d): ?>
+              <?php
+                $cellStart = (clone $d)->setTime($h, 0, 0);
+                $cellEnd   = (clone $d)->setTime($h+1, 0, 0);
+                $key = $d->format('Y-m-d');
+                $list = $bookingsByDay[$key] ?? [];
+                $cellBookings = bookingsForCell($list, $cellStart, $cellEnd);
+              ?>
+              <td class="align-top p-2">
+                <div class="min-h-[54px] flex flex-col gap-2 cursor-pointer hover:bg-slate-50 rounded-lg p-1"
+                     onclick="openCreateWith('<?= h($key) ?>','<?= hh($h) ?>','<?= hh($h+1) ?>')">
+                  <button class="self-end text-slate-300 hover:text-slate-600" title="Agendar neste horário" onclick="openCreateWith('<?= h($key) ?>','<?= hh($h) ?>','<?= hh($h+1) ?>')">＋</button>
+
+                  <?php foreach ($cellBookings as $b): ?>
+                    <button class="booking-card"
+                            style="--booking-border: <?= h($b['room_color']) ?>; --booking-bg: <?= h($b['room_color']) ?>22"
+                            onclick='event.stopPropagation(); showBooking(<?= json_encode([
+                              'id' => (int)$b['id'],
+                              'title' => $b['title'],
+                              'room' => $b['room_name'],
+                              'color' => $b['room_color'],
+                              'participants' => $b['participants'],
+                              'is_online' => (int)$b['is_online'],
+                              'meeting_link' => $b['meeting_link'],
+                              'notes' => $b['notes'],
+                              'requester' => $b['requester'],
+                              'participants_count' => $b['participants_count'],
+                              'needs_coffee' => (int)$b['needs_coffee'],
+                              'start' => (new DateTime($b['date_start']))->format('d/m/Y H:i'),
+                              'end' => (new DateTime($b['date_end']))->format('d/m/Y H:i'),
+                            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>)'>
+                      <span class="booking-title"><?= h($b['title']) ?></span>
+                      <span class="booking-meta">Solicitante: <?= h($b['requester']) ?></span>
+                      <span class="booking-meta">
+                        <?= (new DateTime($b['date_start']))->format('H:i') ?>–<?= (new DateTime($b['date_end']))->format('H:i') ?>
+                        (<?= h($b['room_name']) ?>)
+                      </span>
+                    </button>
+                  <?php endforeach; ?>
+                </div>
+              </td>
+            <?php endforeach; ?>
+          </tr>
+        <?php endfor; ?>
+      </tbody>
+    </table>
+  </div>
+</section>
