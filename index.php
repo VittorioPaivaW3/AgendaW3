@@ -1,9 +1,12 @@
 <?php
-
-
 // index.php — Navbar + Roteamento + Modo Admin simples
 
-session_start();
+// Inicia sessão apenas se necessário
+if (session_status() !== PHP_SESSION_ACTIVE) {
+  session_start();
+}
+
+// Bootstrap do app (DB, helpers etc.)
 require __DIR__.'/bootstrap.php';
 
 // === Config: senha admin ===
@@ -16,24 +19,26 @@ $is_admin = !empty($_SESSION['is_admin']);
 $page = $_GET['page'] ?? 'calendario';
 $flash = null;
 
-// --- Ações POST (centralizadas) ---
+// Trata ações POST (login, logout, criar/editar/excluir reservas)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
-    // ---- Admin: login/logout ----
+    // ---- Admin login/logout ----
     if ($action === 'admin_login') {
-        $pass = $_POST['admin_password'] ?? '';
-        if ($pass === ADMIN_PASS) {
+        $pwd = $_POST['admin_password'] ?? '';
+        if ($pwd === ADMIN_PASS) {
             $_SESSION['is_admin'] = true;
             $is_admin = true;
-            $flash = ['type'=>'success','msg'=>'Você entrou como administrador.'];
+            $flash = ['type'=>'success','msg'=>'Você entrou como admin.'];
+            $page = 'dashboard';
         } else {
-            $flash = ['type'=>'error','msg'=>'Senha incorreta.'];
+            $flash = ['type'=>'error','msg'=>'Senha inválida.'];
+            $page = 'calendario';
         }
-        $page = 'calendario';
     }
 
-    if ($action === 'logout') {
+    if ($action === 'admin_logout') {
+        $_SESSION = [];
         session_destroy();
         session_start();
         $is_admin = false;
@@ -41,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $page = 'calendario';
     }
 
-    // ---- Reservas (usuário comum pode criar/excluir) ----
+    // ---- Criar reserva (usuário comum pode criar) ----
     if ($action === 'save_booking') {
         $room_id = (int)($_POST['room_id'] ?? 0);
         $title = trim($_POST['title'] ?? '');
@@ -59,7 +64,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors = [];
         if ($room_id <= 0) $errors[] = 'Selecione uma sala.';
         if ($title === '') $errors[] = 'Informe um título.';
-        if ($requester === '') $errors[] = 'Informe o solicitante.';
         $start = parseDateTime($date, $start_time);
         $end   = parseDateTime($date, $end_time);
         if (!$start || !$end) $errors[] = 'Datas/horários inválidos.';
@@ -77,16 +81,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Sala bloqueada + capacidade
         if (!$errors) {
-            $stBlk = $pdo->prepare('SELECT is_blocked, capacity FROM rooms WHERE id = ?');
-            $stBlk->execute([$room_id]);
-            $roomRow = $stBlk->fetch(PDO::FETCH_ASSOC);
-            if ($roomRow && (int)$roomRow['is_blocked'] === 1) {
-                $errors[] = 'Esta sala está bloqueada para agendamentos.';
-            }
-            $capacity = (int)($roomRow['capacity'] ?? 0);
-            if ($capacity > 0 && $participants_count > $capacity) {
-                $errors[] = 'Quantidade de participantes excede a capacidade da sala (' . $capacity . ').';
-            }
+            $blocked = (int)$pdo->query("SELECT is_blocked FROM rooms WHERE id=".$room_id)->fetchColumn();
+            if ($blocked === 1) $errors[] = 'Esta sala está bloqueada para agendamentos.';
+            $cap = (int)$pdo->query("SELECT capacity FROM rooms WHERE id=".$room_id)->fetchColumn();
+            if ($participants_count > $cap) $errors[] = 'Participantes excedem a capacidade da sala.';
         }
 
         // Conflito na mesma sala
@@ -98,26 +96,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':start'   => toSql($start),
                 ':end'     => toSql($end)
             ]);
-            if ((int)$st->fetchColumn() > 0) {
+            $conflicts = (int)$st->fetchColumn();
+            if ($conflicts > 0) {
                 $errors[] = 'Conflito de agendamento nesta sala para o período escolhido.';
             }
         }
 
         if (empty($errors)) {
-            $ins = $pdo->prepare('INSERT INTO bookings (room_id, title, date_start, date_end, participants, is_online, meeting_link, notes, requester, participants_count, needs_coffee, created_at)
-            VALUES (:room_id, :title, :date_start, :date_end, :participants, :is_online, :meeting_link, :notes, :requester, :participants_count, :needs_coffee, :created_at)');
+            $ins = $pdo->prepare('INSERT INTO bookings (room_id, title, requester, participants_count, date_start, date_end, participants, is_online, meeting_link, needs_coffee, notes, created_at) VALUES (:room_id, :title, :requester, :pc, :date_start, :date_end, :participants, :is_online, :meeting_link, :needs_coffee, :notes, :created_at)');
             $ins->execute([
                 ':room_id' => $room_id,
                 ':title' => $title,
+                ':requester' => $requester,
+                ':pc' => $participants_count,
                 ':date_start' => toSql($start),
                 ':date_end' => toSql($end),
                 ':participants' => $participants,
                 ':is_online' => $is_online,
                 ':meeting_link' => $meeting_link,
-                ':notes' => $notes,
-                ':requester' => $requester,
-                ':participants_count' => $participants_count,
                 ':needs_coffee' => $needs_coffee,
+                ':notes' => $notes,
                 ':created_at' => date('Y-m-d H:i:s')
             ]);
             $flash = ['type' => 'success', 'msg' => 'Reserva criada com sucesso!'];
@@ -127,6 +125,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $page = 'calendario';
     }
 
+    // ---- Editar reserva (apenas admin) ----
+    if ($action === 'update_booking') {
+        $id = (int)($_POST['booking_id'] ?? 0);
+        $room_id = (int)($_POST['room_id'] ?? 0);
+        $title = trim($_POST['title'] ?? '');
+        $date = $_POST['date'] ?? '';
+        $start_time = $_POST['start_time'] ?? '';
+        $end_time = $_POST['end_time'] ?? '';
+        $participants = trim($_POST['participants'] ?? '');
+        $is_online = isset($_POST['is_online']) ? 1 : 0;
+        $meeting_link = trim($_POST['meeting_link'] ?? '');
+        $notes = trim($_POST['notes'] ?? '');
+        $requester = trim($_POST['requester'] ?? '');
+        $participants_count = max(1, (int)($_POST['participants_count'] ?? 1));
+        $needs_coffee = isset($_POST['needs_coffee']) ? 1 : 0;
+
+        if (empty($_SESSION['is_admin'])) {
+            $flash = ['type'=>'error','msg'=>'Apenas admin pode editar reservas.'];
+            $page = 'calendario';
+        } else {
+            $errors = [];
+            if ($id <= 0) $errors[] = 'Reserva inválida.';
+            if ($room_id <= 0) $errors[] = 'Selecione uma sala.';
+            if ($title === '') $errors[] = 'Informe um título.';
+            $start = parseDateTime($date, $start_time);
+            $end   = parseDateTime($date, $end_time);
+            if (!$start || !$end) $errors[] = 'Datas/horários inválidos.';
+
+            if (!$errors && $start) {
+                $dow = (int)$start->format('N');
+                if ($dow > 5) { $errors[] = 'Agendamentos apenas de segunda a sexta.'; }
+            }
+            if (!$errors && !withinBusinessHours($start, $end)) {
+                $errors[] = 'Horário fora do expediente (08:00–18:00) ou início ≥ término.';
+            }
+
+            if (!$errors) {
+                $blocked = (int)$pdo->query("SELECT is_blocked FROM rooms WHERE id=".$room_id)->fetchColumn();
+                if ($blocked === 1) $errors[] = 'Esta sala está bloqueada para agendamentos.';
+                $cap = (int)$pdo->query("SELECT capacity FROM rooms WHERE id=".$room_id)->fetchColumn();
+                if ($participants_count > $cap) $errors[] = 'Participantes excedem a capacidade da sala.';
+            }
+
+            if (!$errors) {
+                $sql = 'SELECT COUNT(*) FROM bookings 
+                        WHERE room_id = :room_id 
+                          AND id <> :id
+                          AND (:start < date_end) AND (:end > date_start)';
+                $st = $pdo->prepare($sql);
+                $st->execute([
+                    ':room_id' => $room_id,
+                    ':id' => $id,
+                    ':start'   => toSql($start),
+                    ':end'     => toSql($end)
+                ]);
+                $conflicts = (int)$st->fetchColumn();
+                if ($conflicts > 0) {
+                    $errors[] = 'Conflito de agendamento nesta sala para o período escolhido.';
+                }
+            }
+
+            if (empty($errors)) {
+                $up = $pdo->prepare('UPDATE bookings 
+                    SET room_id=:room_id, title=:title, requester=:requester, participants_count=:pc,
+                        date_start=:ds, date_end=:de, participants=:participants, is_online=:is_online,
+                        meeting_link=:meeting_link, needs_coffee=:needs_coffee, notes=:notes
+                    WHERE id=:id');
+                $up->execute([
+                    ':room_id'=>$room_id,
+                    ':title'=>$title,
+                    ':requester'=>$requester,
+                    ':pc'=>$participants_count,
+                    ':ds'=>toSql($start),
+                    ':de'=>toSql($end),
+                    ':participants'=>$participants,
+                    ':is_online'=>$is_online,
+                    ':meeting_link'=>$meeting_link,
+                    ':needs_coffee'=>$needs_coffee,
+                    ':notes'=>$notes,
+                    ':id'=>$id,
+                ]);
+                $flash = ['type'=>'success','msg'=>'Reserva atualizada com sucesso!'];
+            } else {
+                $flash = ['type'=>'error','msg'=>implode(' ', $errors)];
+            }
+            $page = 'calendario';
+        }
+    }
+
+    // ---- Excluir reserva ----
     if ($action === 'delete_booking') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) {
@@ -135,111 +223,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $page = 'calendario';
     }
-
-    // ---- CRUD de Salas (somente Admin) ----
-    if ($action === 'create_room' && $is_admin) {
-        $name = trim($_POST['name'] ?? '');
-        $color = $_POST['color'] ?? '#78BE20';
-        $capacity = max(1, (int)($_POST['capacity'] ?? 1));
-        $has_wifi = isset($_POST['has_wifi']) ? 1 : 0;
-        $has_tv = isset($_POST['has_tv']) ? 1 : 0;
-        $has_board = isset($_POST['has_board']) ? 1 : 0;
-        $has_ac = isset($_POST['has_ac']) ? 1 : 0;
-        $is_blocked = isset($_POST['is_blocked']) ? 1 : 0;
-        if ($name !== '') {
-            $pdo->prepare('INSERT INTO rooms (name, color, capacity, has_wifi, has_tv, has_board, has_ac, is_blocked) VALUES (?,?,?,?,?,?,?,?)')
-                ->execute([$name, $color, $capacity, $has_wifi, $has_tv, $has_board, $has_ac, $is_blocked]);
-            $flash = ['type' => 'success', 'msg' => 'Sala adicionada.'];
-        } else {
-            $flash = ['type' => 'error', 'msg' => 'Informe o nome da sala.'];
-        }
-        $page = 'salas';
-    }
-
-    if ($action === 'update_room' && $is_admin) {
-        $id = (int)($_POST['id'] ?? 0);
-        $name = trim($_POST['name'] ?? '');
-        $color = $_POST['color'] ?? '#78BE20';
-        $capacity = max(1, (int)($_POST['capacity'] ?? 1));
-        $has_wifi = isset($_POST['has_wifi']) ? 1 : 0;
-        $has_tv = isset($_POST['has_tv']) ? 1 : 0;
-        $has_board = isset($_POST['has_board']) ? 1 : 0;
-        $has_ac = isset($_POST['has_ac']) ? 1 : 0;
-        $is_blocked = isset($_POST['is_blocked']) ? 1 : 0;
-        if ($id > 0 && $name !== '') {
-            $pdo->prepare('UPDATE rooms SET name=?, color=?, capacity=?, has_wifi=?, has_tv=?, has_board=?, has_ac=?, is_blocked=? WHERE id=?')
-                ->execute([$name,$color,$capacity,$has_wifi,$has_tv,$has_board,$has_ac,$is_blocked,$id]);
-            $flash = ['type' => 'success', 'msg' => 'Sala atualizada.'];
-        } else {
-            $flash = ['type' => 'error', 'msg' => 'Dados inválidos para atualização.'];
-        }
-        $page = 'salas';
-    }
-
-    if ($action === 'delete_room' && $is_admin) {
-        $id = (int)($_POST['id'] ?? 0);
-        if ($id > 0) {
-            $pdo->prepare('DELETE FROM rooms WHERE id=?')->execute([$id]);
-            $pdo->prepare('DELETE FROM bookings WHERE room_id=?')->execute([$id]);
-            $flash = ['type' => 'success', 'msg' => 'Sala e reservas associadas removidas.'];
-        }
-        $page = 'salas';
-    }
 }
 
-// Após processar POST, garanta que $rooms exista para os modais em qualquer página
-$rooms = [];
-foreach ($pdo->query('SELECT * FROM rooms ORDER BY id') as $r) {
-    $rooms[(int)$r['id']] = $r;
-}
-
-// Restringir acesso
-if (!$is_admin && in_array($page, ['dashboard','salas'], true)) {
-    $page = 'calendario';
-    $flash = $flash ?: ['type'=>'error','msg'=>'Área restrita a administradores. Clique em “Admin” e informe a senha.'];
-}
-
+// Navbar + roteamento
 ?>
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Agenda de Salas</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    dialog::backdrop { background: rgba(15,23,42,.45); }
-    .feature { display:inline-flex; align-items:center; gap:.375rem; padding:.3rem .55rem; border-radius:.5rem; background:#f1f5f9; font-size:.75rem; }
-    .booking-card { display:flex; flex-direction:column; gap:.25rem; border:1px solid #e2e8f0; background:#f8fafc; border-radius:.75rem; padding:.6rem .7rem; }
-    .booking-title { font-weight:700; line-height:1.1; }
-    .booking-meta { font-size:.8rem; color:#475569; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-      :root { --w3-green: #78BE20; }
-  .active-tab{ background: var(--w3-green) !important; color:#fff !important; }
-  .active-tab:hover{ filter: brightness(0.95); }
-  .btn-w3{ background: var(--w3-green); color:#fff; }
-  .btn-w3:hover{ filter: brightness(0.95); }
+    .btn-w3{ background:#78BE20; color:#fff } .btn-w3:hover{ filter:brightness(.95) }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800">
-
-  <!-- NAVBAR -->
-  <nav class="bg-white shadow sticky top-0 z-40">
-    <div class="max-w-[1600px] mx-auto px-6 lg:px-12 h-16 flex items-center justify-between">
-      <a href="?page=calendario" class="flex items-center gap-3">
-        <img src="logo-w3.png" alt="Grupo W3" class="h-8 w-auto"/>
-        <span class="sr-only">Grupo W3</span>
-      </a>
-      <?php $active = function($p) use ($page){ return $page===$p ? 'active-tab' : 'text-slate-700 hover:bg-slate-100'; }; ?>
-
+  <nav class="bg-white border-b border-slate-200">
+    <div class="max-w-[1600px] mx-auto px-6 lg:px-12 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="logo-w3.png" alt="W3" class="h-8 w-auto"/>
+        <a href="index.php?page=calendario" class="px-3 py-2 rounded-xl hover:bg-slate-50">Reservas</a>
+        <?php if (!empty($_SESSION['is_admin'])): ?>
+          <a href="index.php?page=dashboard" class="px-3 py-2 rounded-xl hover:bg-slate-50">Dashboard</a>
+          <a href="index.php?page=salas" class="px-3 py-2 rounded-xl hover:bg-slate-50">Salas</a>
+        <?php endif; ?>
+      </div>
       <div class="flex items-center gap-2">
-        <a href="?page=calendario" class="px-3 py-2 rounded-xl <?= $active('calendario') ?>">Reservas</a>
-
-        <?php if ($is_admin): ?>
-          <a href="?page=dashboard" class="px-3 py-2 rounded-xl <?= $active('dashboard') ?>">Dashboard</a>
-          <a href="?page=salas" class="px-3 py-2 rounded-xl <?= $active('salas') ?>">Salas</a>
-          <form method="post" class="ml-2 inline">
-            <input type="hidden" name="action" value="logout"/>
-            <button class="px-3 py-2 rounded-xl text-slate-700 hover:bg-slate-100" title="Sair">Sair</button>
+        <?php if (!empty($_SESSION['is_admin'])): ?>
+          <form method="post">
+            <input type="hidden" name="action" value="admin_logout"/>
+            <button class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200">Sair</button>
           </form>
         <?php else: ?>
           <button id="openAdmin" class="px-3 py-2 rounded-xl text-slate-700 hover:bg-slate-100">Admin</button>
@@ -257,15 +271,26 @@ if (!$is_admin && in_array($page, ['dashboard','salas'], true)) {
 
     <?php
       if ($page==='calendario') include __DIR__.'/calendario.php';
-      if ($page==='dashboard' && $is_admin) include __DIR__.'/dashboard.php';
-      if ($page==='salas' && $is_admin) include __DIR__.'/salas.php';
+      if ($page==='dashboard') { if (empty($_SESSION['is_admin'])) { echo '<div class="bg-rose-50 text-rose-700 rounded-xl p-4">Apenas admin.</div>'; } else { include __DIR__.'/dashboard.php'; } }
+      if ($page==='salas')     { if (empty($_SESSION['is_admin'])) { echo '<div class="bg-rose-50 text-rose-700 rounded-xl p-4">Apenas admin.</div>'; } else { include __DIR__.'/salas.php'; } }
+
+      // === Includes resilientes ===
+      // modals.php em raiz ou /partials
+      $modalsCandidates = [__DIR__.'/modals.php', __DIR__.'/partials/modals.php'];
+      $loaded = false;
+      foreach ($modalsCandidates as $p) {
+          if (file_exists($p)) { include $p; $loaded = true; break; }
+      }
+      if (!$loaded) { echo "<!-- Aviso: modals.php não encontrado -->"; }
+
+      // scripts.php em raiz ou /partials
+      $scriptsCandidates = [__DIR__.'/scripts.php', __DIR__.'/partials/scripts.php'];
+      $loaded = false;
+      foreach ($scriptsCandidates as $p) {
+          if (file_exists($p)) { include $p; $loaded = true; break; }
+      }
+      if (!$loaded) { echo "<!-- Aviso: scripts.php não encontrado -->"; }
     ?>
   </div>
-  
-
-
-  <?php include __DIR__.'/partials/modals.php'; ?>
-  <?php include __DIR__.'/partials/scripts.php'; ?>
-
 </body>
 </html>

@@ -1,5 +1,5 @@
 <?php
-// partials/modals.php — todos os modais (delete somente para admin)
+// partials/modals.php — todos os modais (delete/editar somente para admin)
 ?>
 
 <!-- Modal: Login Admin -->
@@ -16,12 +16,12 @@
   </form>
 </dialog>
 
-<!-- Modal: Criar reserva -->
+<!-- Modal: Criar/Editar reserva -->
 <dialog id="createDialog" class="rounded-2xl w-[min(800px,95vw)] p-0">
   <form method="post" class="p-6 space-y-4" onsubmit="return onSubmitCreate()">
-    <input type="hidden" name="action" value="save_booking"/>
+    <!-- estes dois inputs são controlados via JS -->
     <input type="hidden" name="booking_id" id="booking_id" value="">
-<input type="hidden" name="action" value="save_booking" id="booking_action">
+    <input type="hidden" name="action" value="save_booking" id="booking_action">
 
     <div class="flex items-start justify-between">
       <h2 class="text-lg font-semibold">Nova reserva</h2>
@@ -33,7 +33,12 @@
         <label class="text-sm font-medium">Sala</label>
         <select name="room_id" id="room_id_form" required class="mt-1 w-full rounded-xl border-slate-300 focus:ring-2 focus:ring-indigo-500">
           <option value="">Selecione…</option>
-          <?php foreach ($rooms as $rid => $r): ?>
+          <?php
+          $rooms = [];
+          foreach ($pdo->query('SELECT * FROM rooms ORDER BY id') as $r) {
+              $rooms[(int)$r['id']] = $r;
+          }
+          foreach ($rooms as $rid => $r): ?>
             <option value="<?= $rid ?>" <?= (int)$r['is_blocked']? 'disabled' : '' ?>>
               <?= h($r['name']) ?> (cap. <?= (int)$r['capacity'] ?>)<?= (int)$r['is_blocked'] ? ' — BLOQUEADA' : '' ?>
             </option>
@@ -80,6 +85,7 @@
           <input type="checkbox" name="is_online" id="is_online" onchange="toggleLink()"/>
           <span>Reunião online</span>
         </label>
+        <!-- IMPORTANTE: SEM required (opcional sempre) -->
         <input type="url" name="meeting_link" id="meeting_link" placeholder="Link (Teams, Meet, Zoom…)" class="flex-1 rounded-xl border-slate-300 focus:ring-2 focus:ring-indigo-500 hidden"/>
 
         <label class="inline-flex items-center gap-2">
@@ -96,7 +102,7 @@
 
     <div class="flex justify-end gap-2 pt-2">
       <button type="button" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200" onclick="this.closest('dialog').close()">Cancelar</button>
-      <button class="px-4 py-2 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700">Salvar</button>
+      <button class="px-4 py-2 rounded-xl btn-w3 font-semibold">Salvar</button>
     </div>
   </form>
 </dialog>
@@ -111,43 +117,12 @@
     <div id="detailsContent" class="space-y-2 text-sm"></div>
 
     <?php if (!empty($_SESSION['is_admin'])): ?>
-    <form method="post" onsubmit="return confirm('Excluir esta reserva?')">
+    <form method="post" class="flex items-center justify-end gap-2" onsubmit="return confirm('Excluir esta reserva?')">
+      <button type="button" class="px-3 py-2 rounded-xl btn-w3" onclick="openEditBooking()">Editar</button>
       <input type="hidden" name="action" value="delete_booking"/>
       <input type="hidden" name="id" id="del_id" value=""/>
-      <div class="flex justify-end">
-        <button class="px-3 py-2 rounded-xl bg-rose-600 text-white font-semibold hover:bg-rose-700">Excluir</button>
-      </div>
+      <button class="px-3 py-2 rounded-xl bg-rose-600 text-white font-semibold hover:bg-rose-700">Excluir</button>
     </form>
     <?php endif; ?>
-  </div>
-</dialog>
-
-<!-- Modal: Informações das salas -->
-<dialog id="roomsDialog" class="rounded-2xl w-[min(800px,95vw)] p-0">
-  <div class="p-6 space-y-4">
-    <div class="flex items-start justify-between">
-      <h2 class="text-lg font-semibold">Salas e facilidades</h2>
-      <button type="button" class="text-slate-400 hover:text-slate-700" onclick="this.closest('dialog').close()">✕</button>
-    </div>
-    <div class="space-y-4 text-sm">
-      <?php foreach ($rooms as $rid => $r): ?>
-        <div class="border border-slate-200 rounded-xl p-4 flex flex-col gap-3">
-          <div class="flex items-center gap-3">
-            <span class="inline-block w-3 h-3 rounded-full" style="background: <?= h($r['color']) ?>"></span>
-            <div class="font-semibold"><?= h($r['name']) ?> <span class="text-slate-500">(cap. <?= (int)$r['capacity'] ?>)</span></div>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <?php if ((int)$r['has_wifi']) : ?><span class="feature">📶 Wi-Fi</span><?php endif; ?>
-            <?php if ((int)$r['has_tv'])   : ?><span class="feature">📺 TV</span><?php endif; ?>
-            <?php if ((int)$r['has_board']): ?><span class="feature">🧑‍🏫 Quadro</span><?php endif; ?>
-            <?php if ((int)$r['has_ac'])   : ?><span class="feature">❄️ Ar-condicionado</span><?php endif; ?>
-            <?php if ((int)$r['is_blocked']): ?><span class="feature" style="background:#fee2e2;border-color:#fecaca">⛔ Bloqueada</span><?php endif; ?>
-          </div>
-        </div>
-      <?php endforeach; ?>
-    </div>
-    <div class="flex justify-end">
-      <button class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200" onclick="this.closest('dialog').close()">Fechar</button>
-    </div>
   </div>
 </dialog>

@@ -84,7 +84,7 @@ foreach ($allBookingsAllRooms as $b) {
     }
 }
 
-// Helper para preservar filtros na navegação (sem mudar estética)
+// Helper para preservar filtros na navegação
 $filtersQS = '';
 if (!empty($_SESSION['is_admin'])) {
     if ($filterOnline) $filtersQS .= '&filter_online=1';
@@ -124,7 +124,6 @@ $weekdayLabels = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex'];
         // mantém o dia selecionado no mobile (se presente)
         if (isset($_GET['mday'])) $qsBase .= '&mday='.(int)$mobileDay;
       ?>
-      <!-- estilos mínimos só para a nav -->
       <style>
         .cal-nav{display:flex;align-items:center;gap:.5rem}
         .cal-nav a{display:inline-flex;align-items:center;gap:.5rem;border-radius:.75rem;padding:.5rem .75rem;color:#0f172a}
@@ -137,7 +136,6 @@ $weekdayLabels = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex'];
 
       <div class="cal-nav">
         <a class="nav-today" href="?<?= h($qsBase) ?>&week=<?= h((new DateTime('today'))->format('Y-m-d')) ?>">
-          <!-- ícone calendário -->
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
             <line x1="16" y1="2" x2="16" y2="6"></line>
@@ -152,25 +150,16 @@ $weekdayLabels = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex'];
       </div>
     </div>
 
-    <!-- Barra de ações (ordem solicitada) -->
+    <!-- Ações -->
     <div class="flex flex-wrap items-end gap-4">
-      <!-- 1) + Nova reserva -->
-      <button id="openCreate" class="px-4 h-10 rounded-xl btn-w3 font-semibold">
-        + Nova reserva
-      </button>
+      <button id="openCreate" class="px-4 h-10 rounded-xl btn-w3 font-semibold">+ Nova reserva</button>
+      <button id="openRooms" class="px-4 h-10 rounded-xl btn-rooms">Informações das salas</button>
 
-      <!-- 2) Informações das salas -->
-      <button id="openRooms" class="px-4 h-10 rounded-xl btn-rooms">
-        Informações das salas
-      </button>
-
-      <!-- 3) Filtros (sala, online, café, aplicar) -->
       <form method="get" class="flex flex-wrap items-end gap-3">
         <input type="hidden" name="page" value="calendario" />
         <input type="hidden" name="week" value="<?= h($monday->format('Y-m-d')) ?>" />
         <?php if (isset($_GET['mday'])): ?><input type="hidden" name="mday" value="<?= (int)$mobileDay ?>"/><?php endif; ?>
 
-        <!-- Filtro por sala -->
         <div class="flex items-end gap-2">
           <label for="room_id" class="text-sm font-semibold">Filtrar por sala</label>
           <select id="room_id" name="room_id" class="w-56 rounded-xl border-slate-200 focus:ring-2 focus:ring-indigo-500">
@@ -183,7 +172,6 @@ $weekdayLabels = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex'];
           </select>
         </div>
 
-        <!-- Reunião online / Com café (somente admin) -->
         <?php if (!empty($_SESSION['is_admin'])): ?>
           <label class="inline-flex items-center gap-2">
             <input type="checkbox" name="filter_online" value="1" <?= !empty($_GET['filter_online']) ? 'checked' : '' ?>>
@@ -195,24 +183,21 @@ $weekdayLabels = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex'];
           </label>
         <?php endif; ?>
 
-        <!-- Aplicar -->
         <button class="px-4 h-10 rounded-xl btn-w3 font-semibold">Aplicar</button>
       </form>
     </div>
   </div>
 
-  <!-- Calendário DESKTOP (tabela semanal) -->
+  <!-- Calendário DESKTOP -->
   <div class="hidden md:block">
     <main class="bg-white rounded-2xl shadow p-6 lg:p-8">
       <div>
         <table class="w-full table-fixed">
           <thead class="bg-slate-100 border-b border-slate-200">
             <tr>
-              <!-- Linha vertical após a coluna Hora -->
-              <th class="w-28 px-4 py-3 text-left text-xs font-semibold text-slate-600 sticky left-0 bg-slate-100 border-r border-slate-200">Hora</th>
+              <th class="w-28 px-4 py-3 text-left text-xs font-semibold text-slate-600 sticky left-0 bg-slate-100">Hora</th>
               <?php foreach ($weekDays as $d): ?>
-                <!-- Separadores verticais entre os dias -->
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 border-l border-slate-200">
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600">
                   <?php $label = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex'][(int)$d->format('N')]; ?>
                   <?= h($label) ?> <span class="text-slate-400"><?= h($d->format('d/m')) ?></span>
                 </th>
@@ -239,12 +224,11 @@ $weekdayLabels = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex'];
                     foreach ($rooms as $rid => $rInfo) { if((int)$rInfo['is_blocked']===1) { $occupiedRooms[$rid] = true; } }
                     $slotFull = count($occupiedRooms) >= count($rooms);
                   ?>
-                  <!-- Linha vertical entre as colunas de dia -->
-                  <td class="align-top px-3 py-4 border-l border-slate-200">
+                  <td class="align-top px-3 py-4">
                     <div class="min-h-[72px] flex flex-col gap-3 <?= !$slotFull ? 'cursor-pointer hover:bg-slate-50' : 'opacity-60' ?> rounded-lg p-1"
                          <?= !$slotFull ? "onclick=\"openCreateWith('".h($key)."','".hh($h)."','".hh($h+1)."')\"" : '' ?>>
                       <?php if (!$slotFull): ?>
-                        <button class="self-end text-slate-500 hover:text-slate-700 font-semibold" title="Agendar neste horário"
+                        <button class="self-end text-slate-300 hover:text-slate-600" title="Agendar neste horário"
                                 onclick="event.stopPropagation(); openCreateWith('<?= h($key) ?>','<?= hh($h) ?>','<?= hh($h+1) ?>')">＋</button>
                       <?php else: ?>
                         <span class="self-end text-slate-500 cursor-not-allowed" title="Horário indisponível (salas ocupadas/bloqueadas)">—</span>
@@ -268,6 +252,9 @@ $weekdayLabels = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex'];
                                     "notes" => $b["notes"],
                                     "start" => (new DateTime($b["date_start"]))->format("d/m/Y H:i"),
                                     "end" => (new DateTime($b["date_end"]))->format("d/m/Y H:i"),
+                                    "date_sql" => (new DateTime($b["date_start"]))->format("Y-m-d"),
+                                    "start_hh" => (new DateTime($b["date_start"]))->format("H:i"),
+                                    "end_hh" => (new DateTime($b["date_end"]))->format("H:i"),
                                 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>)'>
                           <div class="booking-title truncate"><?= h($b['title']) ?></div>
                           <div class="booking-meta">
@@ -286,10 +273,9 @@ $weekdayLabels = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex'];
     </main>
   </div>
 
-  <!-- Calendário MOBILE (lista por dia) -->
+  <!-- Calendário MOBILE -->
   <div class="md:hidden">
     <main class="bg-white rounded-2xl shadow p-4">
-      <!-- Navegação do dia dentro da semana -->
       <div class="flex items-center justify-between mb-4">
         <?php
           $baseQS = 'page=calendario&week='.$monday->format('Y-m-d').'&room_id='.$selectedRoom.$filtersQS;
@@ -302,7 +288,6 @@ $weekdayLabels = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex'];
         <a class="px-3 py-1 rounded-lg border border-slate-200 <?= $nextDayUrl ? 'text-slate-700' : 'opacity-40 pointer-events-none' ?>" href="<?= $nextDayUrl ?: '#' ?>">›</a>
       </div>
 
-      <!-- Lista de horários do dia -->
       <div class="space-y-3">
         <?php for ($h = 8; $h < 18; $h++): ?>
           <?php
@@ -324,7 +309,7 @@ $weekdayLabels = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex'];
             <div class="flex items-center justify-between mb-2">
               <div class="text-sm font-semibold text-slate-700"><?= hh($h) ?></div>
               <?php if (!$slotFull): ?>
-                <button class="px-2 py-1 text-sm rounded-lg border border-slate-300 text-slate-700 font-semibold"
+                <button class="px-2 py-1 text-sm rounded-lg border border-slate-200 text-slate-600"
                         onclick="openCreateWith('<?= h($key) ?>','<?= hh($h) ?>','<?= hh($h+1) ?>')">＋ Agendar</button>
               <?php else: ?>
                 <span class="text-slate-400 text-sm">Indisponível</span>
@@ -353,6 +338,9 @@ $weekdayLabels = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex'];
                               "notes" => $b["notes"],
                               "start" => (new DateTime($b["date_start"]))->format("d/m/Y H:i"),
                               "end" => (new DateTime($b["date_end"]))->format("d/m/Y H:i"),
+                              "date_sql" => (new DateTime($b["date_start"]))->format("Y-m-d"),
+                              "start_hh" => (new DateTime($b["date_start"]))->format("H:i"),
+                              "end_hh" => (new DateTime($b["date_end"]))->format("H:i"),
                           ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>)'>
                     <div class="booking-title truncate"><?= h($b['title']) ?></div>
                     <div class="booking-meta">
