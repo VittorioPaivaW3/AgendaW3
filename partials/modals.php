@@ -142,12 +142,11 @@
         foreach ($roomsStmt as $r) {
           $extras = json_decode($r['extras'] ?? '[]', true);
           if (!is_array($extras)) { $extras = []; }
-// Remove specific extras from display
-$extras = array_values(array_filter($extras, function($x){
-  $x = mb_strtolower(trim((string)$x));
-  return !in_array($x, ['projetor','cadeira extra'], true);
-}));
-
+          // Remove itens indesejados
+          $extras = array_values(array_filter($extras, function($x){
+            $x = mb_strtolower(trim((string)$x));
+            return !in_array($x, ['projetor','cadeira extra'], true);
+          }));
       ?>
         <div class="rounded-xl border border-slate-200 p-4">
           <div class="flex items-center justify-between mb-1">
@@ -163,6 +162,7 @@ $extras = array_values(array_filter($extras, function($x){
             <?php if (!empty($r['has_tv']))    : ?><span class="px-2 py-1 rounded-lg bg-slate-100">TV</span><?php endif; ?>
             <?php if (!empty($r['has_board'])) : ?><span class="px-2 py-1 rounded-lg bg-slate-100">Quadro</span><?php endif; ?>
             <?php if (!empty($r['has_ac']))    : ?><span class="px-2 py-1 rounded-lg bg-slate-100">Ar‑condicionado</span><?php endif; ?>
+            <?php if (!empty($r['has_vc']))    : ?><span class="px-2 py-1 rounded-lg bg-slate-100">Video Conferência</span><?php endif; ?>
             <?php foreach ($extras as $ex): ?>
               <span class="px-2 py-1 rounded-lg bg-slate-100"><?= h($ex) ?></span>
             <?php endforeach; ?>

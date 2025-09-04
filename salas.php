@@ -13,6 +13,13 @@ if (!$hasExtras) {
   $pdo->exec("ALTER TABLE rooms ADD COLUMN extras TEXT DEFAULT '[]'");
 }
 
+// Garantir coluna de Videoconferência
+$hasVc = false;
+foreach ($cols as $c) { if (strcasecmp($c['name'], 'has_vc') === 0) { $hasVc = true; break; } }
+if (!$hasVc) {
+  $pdo->exec("ALTER TABLE rooms ADD COLUMN has_vc INTEGER DEFAULT 0");
+}
+
 // --------- Flash helper ---------
 $flash = $flash ?? null;
 if (!empty($_SESSION['flash'])) { $flash = $_SESSION['flash']; unset($_SESSION['flash']); }
@@ -29,10 +36,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $has_tv = !empty($_POST['has_tv']) ? 1 : 0;
       $has_board = !empty($_POST['has_board']) ? 1 : 0;
       $has_ac = !empty($_POST['has_ac']) ? 1 : 0;
-      $is_blocked = !empty($_POST['is_blocked']) ? 1 : 0;
+      $has_vc = !empty($_POST['has_vc']) ? 1 : 0;
+            $is_blocked = !empty($_POST['is_blocked']) ? 1 : 0;
       if ($name === '') throw new Exception('Informe um nome.');
-      $st = $pdo->prepare("INSERT INTO rooms (name,color,capacity,has_wifi,has_tv,has_board,has_ac,is_blocked,extras) VALUES (?,?,?,?,?,?,?,?,?)");
-      $st->execute([$name,$color,$capacity,$has_wifi,$has_tv,$has_board,$has_ac,$is_blocked,'[]']);
+      $st = $pdo->prepare("INSERT INTO rooms (name,color,capacity,has_wifi,has_tv,has_board,has_ac,has_vc,is_blocked,extras) VALUES (?,?,?,?,?,?,?,?,?,?)");
+      $st->execute([$name,$color,$capacity,$has_wifi,$has_tv,$has_board,$has_ac,$has_vc,$is_blocked,'[]']);
       $_SESSION['flash'] = ['type'=>'success','msg'=>'Sala criada com sucesso.'];
     }
 
@@ -46,10 +54,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $has_tv = !empty($_POST['has_tv']) ? 1 : 0;
       $has_board = !empty($_POST['has_board']) ? 1 : 0;
       $has_ac = !empty($_POST['has_ac']) ? 1 : 0;
+      $has_vc = !empty($_POST['has_vc']) ? 1 : 0;
       $is_blocked = !empty($_POST['is_blocked']) ? 1 : 0;
       if ($name === '') throw new Exception('Informe um nome.');
-      $st = $pdo->prepare("UPDATE rooms SET name=?, color=?, capacity=?, has_wifi=?, has_tv=?, has_board=?, has_ac=?, is_blocked=? WHERE id=?");
-      $st->execute([$name,$color,$capacity,$has_wifi,$has_tv,$has_board,$has_ac,$is_blocked,$id]);
+      $st = $pdo->prepare("UPDATE rooms SET name=?, color=?, capacity=?, has_wifi=?, has_tv=?, has_board=?, has_ac=?, has_vc=?, is_blocked=? WHERE id=?");
+      $st->execute([$name,$color,$capacity,$has_wifi,$has_tv,$has_board,$has_ac,$has_vc,$is_blocked,$id]);
       $_SESSION['flash'] = ['type'=>'success','msg'=>'Sala atualizada.'];
     }
 
@@ -137,13 +146,16 @@ $rooms = $pdo->query("SELECT * FROM rooms ORDER BY id")->fetchAll(PDO::FETCH_ASS
         <input id="nac" type="checkbox" name="has_ac" class="peer hidden">
         <label for="nac" class="toggle"><span class="dot"></span>Ar-condicionado</label>
 
+        <input id="nvc" type="checkbox" name="has_vc" class="peer hidden">
+        <label for="nvc" class="toggle"><span class="dot"></span>Video Conferência</label>
+
         <input id="nblock" type="checkbox" name="is_blocked" class="peer hidden">
         <label for="nblock" class="toggle"><span class="dot"></span>Bloquear sala</label>
       </div>
 
       <div class="flex items-center gap-2 justify-end">
         <button type="button" class="px-4 h-10 rounded-xl btn-ghost" onclick="this.closest('#newRoom').classList.add('hidden')">Cancelar</button>
-        <button class="px-4 h-10 rounded-xl btn-w3 font-semibold">Salvar</button>
+        <button type="submit" type="submit" class="px-4 h-10 rounded-xl btn-w3 font-semibold">Salvar</button>
       </div>
     </form>
   </div>
@@ -179,6 +191,7 @@ $rooms = $pdo->query("SELECT * FROM rooms ORDER BY id")->fetchAll(PDO::FETCH_ASS
               data-tv="<?= (int)$r['has_tv'] ?>"
               data-board="<?= (int)$r['has_board'] ?>"
               data-ac="<?= (int)$r['has_ac'] ?>"
+              data-vc="<?= isset($r['has_vc']) ? (int)$r['has_vc'] : 0 ?>"
               data-blocked="<?= (int)$r['is_blocked'] ?>"
             >Editar</button>
 
@@ -233,6 +246,9 @@ $rooms = $pdo->query("SELECT * FROM rooms ORDER BY id")->fetchAll(PDO::FETCH_ASS
       <input id="er_ac" type="checkbox" name="has_ac" class="peer hidden">
       <label for="er_ac" class="toggle"><span class="dot"></span>Ar-condicionado</label>
 
+      <input id="er_vc" type="checkbox" name="has_vc" class="peer hidden">
+      <label for="er_vc" class="toggle"><span class="dot"></span>Video Conferência</label>
+
       <input id="er_blocked" type="checkbox" name="is_blocked" class="peer hidden">
       <label for="er_blocked" class="toggle"><span class="dot"></span>Bloquear sala</label>
     </div>
@@ -258,6 +274,7 @@ $rooms = $pdo->query("SELECT * FROM rooms ORDER BY id")->fetchAll(PDO::FETCH_ASS
     document.getElementById('er_tv').checked      = d.tv === '1';
     document.getElementById('er_board').checked   = d.board === '1';
     document.getElementById('er_ac').checked      = d.ac === '1';
+    document.getElementById('er_vc').checked      = d.vc === '1';
     document.getElementById('er_blocked').checked = d.blocked === '1';
 
     dlg.showModal();
