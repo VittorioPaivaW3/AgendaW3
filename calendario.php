@@ -132,7 +132,29 @@ $weekdayLabels = [1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex'];
         .cal-nav .icon{width:18px;height:18px;opacity:.85}
         .btn-rooms{background:#035F1D;color:#fff}
         .btn-rooms:hover{filter:brightness(.95)}
-      </style>
+/* --- Grid vertical dividers between day columns --- */
+table.table-fixed{border-collapse:separate;border-spacing:0}
+table.table-fixed thead th:not(:first-child),
+table.table-fixed tbody td:not(:first-child){border-left:1px solid #e2e8f0}
+/* Keep sticky first column clean */
+table.table-fixed thead th:first-child,
+table.table-fixed tbody td:first-child{background:#fff;position:sticky;left:0;z-index:1}
+@media (prefers-color-scheme: dark){
+  table.table-fixed thead th:not(:first-child),
+  table.table-fixed tbody td:not(:first-child){border-left-color:#334155}
+  table.table-fixed thead th:first-child,
+  table.table-fixed tbody td:first-child{background:#0b1220}
+}
+      
+/* --- Overrides: keep horizontal lines; vertical dividers via box-shadow --- */
+table.table-fixed{border-collapse:collapse}
+table.table-fixed thead th:not(:first-child),
+table.table-fixed tbody td:not(:first-child){border-left:none;box-shadow:inset 1px 0 0 #e2e8f0}
+@media (prefers-color-scheme: dark){
+  table.table-fixed thead th:not(:first-child),
+  table.table-fixed tbody td:not(:first-child){box-shadow:inset 1px 0 0 #334155}
+}
+</style>
 
       <div class="cal-nav">
         <a class="nav-today" href="?<?= h($qsBase) ?>&week=<?= h((new DateTime('today'))->format('Y-m-d')) ?>">

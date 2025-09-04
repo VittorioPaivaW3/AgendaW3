@@ -126,3 +126,54 @@
     <?php endif; ?>
   </div>
 </dialog>
+
+<!-- Modal: Informações das salas -->
+<dialog id="roomsDialog" class="rounded-2xl w-[min(900px,95vw)] p-0">
+  <div class="p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-lg font-semibold">Informações das salas</h2>
+      <button type="button" class="text-slate-400 hover:text-slate-700" onclick="this.closest('dialog').close()">✕</button>
+    </div>
+
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <?php
+      try {
+        $roomsStmt = $pdo->query('SELECT * FROM rooms ORDER BY name');
+        foreach ($roomsStmt as $r) {
+          $extras = json_decode($r['extras'] ?? '[]', true);
+          if (!is_array($extras)) { $extras = []; }
+// Remove specific extras from display
+$extras = array_values(array_filter($extras, function($x){
+  $x = mb_strtolower(trim((string)$x));
+  return !in_array($x, ['projetor','cadeira extra'], true);
+}));
+
+      ?>
+        <div class="rounded-xl border border-slate-200 p-4">
+          <div class="flex items-center justify-between mb-1">
+            <div class="font-semibold text-slate-800"><?= h($r['name']) ?></div>
+            <span class="inline-block w-3 h-3 rounded-full" style="background: <?= h($r['color']) ?>"></span>
+          </div>
+          <?php if (!empty($r['is_blocked'])): ?>
+            <div class="text-xs text-rose-600 mb-1">Indisponível temporariamente</div>
+          <?php endif; ?>
+          <div class="text-sm text-slate-600">Capacidade: <?= (int)($r['capacity'] ?? 0) ?></div>
+          <div class="mt-2 text-xs text-slate-600 flex flex-wrap gap-2">
+            <?php if (!empty($r['has_wifi']))  : ?><span class="px-2 py-1 rounded-lg bg-slate-100">Wi‑Fi</span><?php endif; ?>
+            <?php if (!empty($r['has_tv']))    : ?><span class="px-2 py-1 rounded-lg bg-slate-100">TV</span><?php endif; ?>
+            <?php if (!empty($r['has_board'])) : ?><span class="px-2 py-1 rounded-lg bg-slate-100">Quadro</span><?php endif; ?>
+            <?php if (!empty($r['has_ac']))    : ?><span class="px-2 py-1 rounded-lg bg-slate-100">Ar‑condicionado</span><?php endif; ?>
+            <?php foreach ($extras as $ex): ?>
+              <span class="px-2 py-1 rounded-lg bg-slate-100"><?= h($ex) ?></span>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php
+        }
+      } catch (Throwable $e) {
+        echo '<div class="text-sm text-rose-600">Erro ao carregar as salas: ' . h($e->getMessage()) . '</div>';
+      }
+      ?>
+    </div>
+  </div>
+</dialog>

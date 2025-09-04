@@ -38,35 +38,4 @@ foreach ($allBookingsAllRooms as $b) {
 }
 $availableHoursPerRoom = 10 * 5; // 10h por dia * 5 dias
 ?>
-
-<hr class="my-8">
-
-<h2 class="text-xl font-bold mb-4">Calendário de Reservas</h2>
 <?php include __DIR__.'/calendario.php'; ?>
-
-
-<div class="bg-white rounded-2xl shadow p-6 lg:p-8 space-y-8">
-  <h1 class="text-2xl font-bold">Dashboard — <?= h($monday->format('d/m')) ?> a <?= h($friday->format('d/m')) ?></h1>
-  <div class="grid md:grid-cols-4 gap-6">
-    <div class="rounded-2xl border border-slate-200 p-5"><div class="text-slate-500 text-sm">Reservas</div><div class="text-3xl font-bold mt-1"><?= (int)$metrics['total_bookings'] ?></div></div>
-    <div class="rounded-2xl border border-slate-200 p-5"><div class="text-slate-500 text-sm">Reuniões online</div><div class="text-3xl font-bold mt-1"><?= (int)$metrics['online'] ?></div></div>
-    <div class="rounded-2xl border border-slate-200 p-5"><div class="text-slate-500 text-sm">Pedidos de café</div><div class="text-3xl font-bold mt-1"><?= (int)$metrics['coffee'] ?></div></div>
-    <div class="rounded-2xl border border-slate-200 p-5"><div class="text-slate-500 text-sm">Total de pessoas (informado)</div><div class="text-3xl font-bold mt-1"><?= (int)$metrics['total_people'] ?></div></div>
-  </div>
-  <div class="space-y-4">
-    <h2 class="text-lg font-semibold">Ocupação por sala (horas da semana)</h2>
-    <div class="space-y-3">
-      <?php foreach ($metrics['per_room'] as $rid=>$row): $pct = min(100, round(($row['hours']/$availableHoursPerRoom)*100)); ?>
-        <div>
-          <div class="flex items-center justify-between text-sm mb-1">
-            <div class="flex items-center gap-2"><span class="inline-block w-3 h-3 rounded-full" style="background: <?= h($row['color']) ?>"></span><strong><?= h($row['name']) ?></strong></div>
-            <div><?= number_format($row['hours'],1,',','.') ?>h / <?= $availableHoursPerRoom ?>h</div>
-          </div>
-          <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-            <div class="h-3 rounded-full" style="width: <?= $pct ?>%; background: <?= h($row['color']) ?>55"></div>
-          </div>
-        </div>
-      <?php endforeach; ?>
-    </div>
-  </div>
-</div>
